@@ -58,7 +58,7 @@ int getch()
 #endif
 
 #define WIDTH 25
-#define HEIGHT 25
+#define HEIGHT 15
 
 struct node
 {
@@ -87,23 +87,6 @@ double max (double x, double y) {
 	return y;
 }
 
-/* Checks if pair [i,j] belongs to list *first */
-bool belongsList (node *first, int i, int j)
-{
-	for (node *p = first; p->next != first; p = p->next)
-		if (p->x == i && p->y == j) return true;
-	return false;
-}
-
-/* Sets new position to fruit. New position can't be in the snake */
-void resetFruit (node *first, int *fx, int *fy)
-{
-	while (belongsList (first, *fx, *fy)){
-		*fx = rand_range(1, WIDTH-2);
-		*fy = rand_range(1, HEIGHT-2);
-	}
-}
-
 /* Creates and returns pointer to a node in the list after *last */
 node *createNode (node *last, int pos_x, int pos_y)
 {
@@ -111,8 +94,8 @@ node *createNode (node *last, int pos_x, int pos_y)
 	new_node->x = pos_x;
 	new_node->y = pos_y;
 	
-	new_node->next = last->next;
 	new_node->before = last;
+	new_node->next = last->next;
 	
 	last->next->before = new_node;	
 	last->next = new_node;
@@ -120,18 +103,40 @@ node *createNode (node *last, int pos_x, int pos_y)
 	return new_node;
 }
 
+/* Checks if pair [i,j] belongs to list *first */
+bool belongsList (node *first, int size, int i, int j)
+{
+	int k;
+	node *p;
+	
+	for (k = 0, p = first; k < size; p = p->next, k++)
+		if (p->x == i && p->y == j) return true;
+	return false;
+}
+
+/* Sets new position to fruit. New position can't be in the snake */
+void resetFruit (node *first, int size, int *fx, int *fy)
+{
+	while (belongsList (first, size, *fx, *fy)){
+		*fx = rand_range(1, WIDTH-2);
+		*fy = rand_range(1, HEIGHT-2);
+	}
+}
+
 /* Prints out list */
-void printList (node *first) {
+void printList (node *first, int size) {
+	int i;
+	node *p;
+	
 	cout << "lista:" << endl;
-	for (node* p = first; p->next != first; p = p->next)
+	for (i = 0, p = first; i < size; p = p->next, i++)
 		cout << "[" << p->x << ", " << p->y << "]" << endl;
 }
 
-/* Checks if head hits body */
-bool hitsBody (node *first, int x, int y)
+bool hitsTail (node *first, int size, int x, int y)
 {
-	for (node *p = first->next; p->next->next != first; p = p->next)
-		if (first->x == p->x && first->y == p->y) return true;
+	if (belongsList(first->next, size-1, x, y))
+		return true;
 	return false;
 }
 
@@ -143,26 +148,27 @@ int main ()
 	char input;
 	double t1 = time_now();
 	double t2 = t1;
-	double DELAY = 0.1;
+	double DELAY = 0.15;
 	
 	int fx = rand_range(1, WIDTH-2);
 	int fy = rand_range(1, HEIGHT-2);
 	
 	int x_before, y_before;
+	int size = 1;
 	
 	node head, first, second, third;
-	node *last = NULL;
+	node *last = &first;
 	
 	first.x = WIDTH/2;
 	first.y = HEIGHT/2;
-	first.next = &head;
-	first.before = &head;
-	
+	first.next = &first;
+	first.before = &first;
+	/*
 	head.x = -1;
 	head.y = -1;
 	head.next = &first;
 	head.before = &first;
-	
+	*/
 	while (!gameOver) {
 		/* SETUP TERMINAL */
 		set_conio_terminal_mode();
@@ -177,7 +183,7 @@ int main ()
 		reset_terminal_mode();
 		system ("clear");
 		/*----------------*/
-		
+
 		/* INPUT */		
 		int x_before = first.x;
 		int y_before = first.y;
@@ -211,25 +217,25 @@ int main ()
 		//Hits Wall
 		if (first.x == WIDTH || first.x == -1 || first.y == HEIGHT || first.y == -1) gameOver = true;
 		
-		//Hits Tail
-		if (hitsBody (&first, first.x, first.y)) gameOver = true;
-		
 		//Hits Fruit
 		if (fx == first.x && fy == first.y) {
 			score += 10;
-			last = createNode (last ? last : &first, fx, fy);
-			resetFruit (&first, &fx, &fy);
+			size++;
+			last = createNode (last, fx, fy);
+			resetFruit (&first, size, &fx, &fy);
 		}
 		
-		//Tail Follows
-		if (last != NULL) {
+		//Move
+		if (size > 1){	
 			last->x = x_before;
 			last->y = y_before;
-			if (last->before == &head)
-				last = last->before->before;
-			else
-				last = last->before;
+			last = last->before;
 		}
+		
+		//Hits Tail
+		if (size > 1)
+			if (hitsTail (&first, size, first.x, first.y)) gameOver = true;
+		
 		/*-------*/
 		
 		/* DRAW */
@@ -240,9 +246,9 @@ int main ()
 		for (int y = 0; y < HEIGHT; y++) {
 		cout << '#';
 			for (int x = 0; x < WIDTH; x++) {
-				if (belongsList (&first, x, y))	cout << 'O';
-				else if (x == fx && y == fy)	cout << 'x';
-				else 							cout << ' ';
+				if (belongsList (&first, size, x, y))	cout << 'O';
+				else if (x == fx && y == fy)			cout << 'x';
+				else 									cout << ' ';
 			}
 		cout << '#' << endl;
 		}
