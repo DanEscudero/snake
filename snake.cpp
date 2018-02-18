@@ -33,7 +33,8 @@ void set_conio_terminal_mode()  //Configura terminal especial
     tcsetattr(0, TCSANOW, &new_termios);
 }
 
-int kbhit() //Retorna 0 se nada foi teclado
+/* Ckecks if keyboard was hit */
+int kbhit()
 {
     struct timeval tv = { 0L, 0L };
     fd_set fds;
@@ -42,7 +43,8 @@ int kbhit() //Retorna 0 se nada foi teclado
     return select(1, &fds, NULL, NULL, &tv);
 }
 
-int getch() //Lê o que foi teclado
+/* Gets char from keyboard */
+int getch()
 {
     int r;
     unsigned char c;
@@ -55,134 +57,147 @@ int getch() //Lê o que foi teclado
 
 #endif
 
-#define ALTURA 9
-#define LARGURA 9
-#define DELAY 0.3
+#define WIDTH 25
+#define HEIGHT 25
 
 struct node
 {
 	int x;
 	int y;
-	node * prox;
+	node *next;
+	node *before;
 };
 
-struct pos
-{
-	int x;
-	int y;
-};
-
+/* Returns an integer in range [min, max] */
 int rand_range (int min, int max)
 {
 	srand(clock());
 	return rand()*1.0/(RAND_MAX-1) * (max+1-min) + min;
 }
 
-double time_n()
+/* Returns time now */
+double time_now()
 {
 	return double (clock())/CLOCKS_PER_SEC;
 }
 
-node * createNode (int posx, int posy, node *p)
-{
-	node *novo;
-	novo = new(node);
-	novo->x = posx;
-	novo->y = posy;
-	novo->prox = p->prox;
-	p->prox = novo;
+/* Returns maximum number between x and y */
+double max (double x, double y) {
+	if (x > y) return x;
+	return y;
 }
 
-bool belongsList (node *lst, int pos_x, int pos_y) {
-	node *i;
-	for (i = lst; i->prox != NULL; i = i->prox)
-		if ((i->x)%LARGURA == pos_x && (i->y)%ALTURA == pos_y) return true;
+/* Checks if pair [i,j] belongs to list *first */
+bool belongsList (node *first, int i, int j)
+{
+	for (node *p = first; p->next != first; p = p->next)
+		if (p->x == i && p->y == j) return true;
 	return false;
 }
 
-void reset_fruit (node *lst, int *x, int *y)
+/* Sets new position to fruit. New position can't be in the snake */
+void resetFruit (node *first, int *fx, int *fy)
 {
-	while (belongsLista(lst, int *x, int *y)) {
-		*x = rand_range(0, LARGURA-1);
-		*y = rand_range(0, ALTURA-1);
+	while (belongsList (first, *fx, *fy)){
+		*fx = rand_range(1, WIDTH-2);
+		*fy = rand_range(1, HEIGHT-2);
 	}
 }
 
-void printLista (node *lst) {
+/* Creates and returns pointer to a node in the list after *last */
+node *createNode (node *last, int pos_x, int pos_y)
+{
+	node *new_node = new(node);
+	new_node->x = pos_x;
+	new_node->y = pos_y;
+	
+	new_node->next = last->next;
+	new_node->before = last;
+	
+	last->next->before = new_node;	
+	last->next = new_node;
+	
+	return new_node;
+}
+
+/* Prints out list */
+void printList (node *first) {
 	cout << "lista:" << endl;
-	for (node* i = lst; i->prox!=NULL; i = i->prox) {
-		cout << "[" << i->x << ", " << i->y << "]" << endl;
-	}
+	for (node* p = first; p->next != first; p = p->next)
+		cout << "[" << p->x << ", " << p->y << "]" << endl;
 }
 
-int main () {
-	/* SETUP */	
+/* Checks if head hits body */
+bool hitsBody (node *first, int x, int y)
+{
+	for (node *p = first->next; p->next->next != first; p = p->next)
+		if (first->x == p->x && first->y == p->y) return true;
+	return false;
+}
+
+int main ()
+{
 	bool gameOver = false;
 	int score = 0;
-	int nSnake = 1;
 	
 	char input;
-	double tnow = time_n();
-	double tbefore = tnow;
+	double t1 = time_now();
+	double t2 = t1;
+	double DELAY = 0.1;
 	
-	int fx = rand_range (0, LARGURA-1);
-	int fy = rand_range (0, ALTURA-1);
+	int fx = rand_range(1, WIDTH-2);
+	int fy = rand_range(1, HEIGHT-2);
 	
-	node head;
-	head.x = LARGURA/2;
-	head.y = ALTURA/2;
-	head.prox = NULL;
-	node *last = &head;
+	int x_before, y_before;
 	
-	/*-------*/
+	node head, first, second, third;
+	node *last = NULL;
+	
+	first.x = WIDTH/2;
+	first.y = HEIGHT/2;
+	first.next = &head;
+	first.before = &head;
+	
+	head.x = -1;
+	head.y = -1;
+	head.next = &first;
+	head.before = &first;
 	
 	while (!gameOver) {
 		/* SETUP TERMINAL */
 		set_conio_terminal_mode();
-		while (kbhit() == 0 && tnow - tbefore < DELAY) tnow = time_n();
-		if(tnow - tbefore < DELAY) input = getch();
-		tbefore = tnow;
+		
+		//DELAY is set to change, giving proression in dificulty
+		DELAY = max(0.1 - 0.002*(double)(score/10), 0.03);
+		
+		while (!kbhit() && t1-t2 < DELAY) t1 = time_now();
+		if (t1-t2 < DELAY) input = getch();
+		t2 = t1;
+		
 		reset_terminal_mode();
-		system("clear");
+		system ("clear");
 		/*----------------*/
 		
-		/* INPUT */
-		/* W A S D INPUT TYPE */
+		/* INPUT */		
+		int x_before = first.x;
+		int y_before = first.y;
+		
 		switch (input) {
 			case 'w':
 			case 'W':
-				head.x--;
+				first.y--;
 				break;
 			case 's':
 			case 'S':
-				head.x++;
+				first.y++;
 				break;
 			case 'a':
 			case 'A':
-				head.y--;
+				first.x--;
 				break;
 			case 'd':
 			case 'D':
-				head.y++;
-				break;
-			case 'q':
-			case 'Q':
-				gameOver = true;
-				break;
-		}
-		/* ARROW KEYS INPUT TYPE*/
-		/*switch (input) {
-			case 'A':
-				head.y--;
-				break;
-			case 'B':
-				head.y++;
-				break;
-			case 'C':
-				head.x++;
-				break;
-			case 'D':
-				head.x--;
+				first.x++;
 				break;
 			case 'q':
 			case 'Q':
@@ -192,47 +207,62 @@ int main () {
 		/*-------*/
 		
 		/* LOGIC */
-		head.y = head.y%ALTURA;
-		head.x = head.x%LARGURA;
-		if (head.x < 0) head.x += LARGURA;
-		if (head.y < 0) head.y += ALTURA;
+		//MISSING: SPECIAL FRUIT
+		//Hits Wall
+		if (first.x == WIDTH || first.x == -1 || first.y == HEIGHT || first.y == -1) gameOver = true;
 		
-		if (head.y%ALTURA == fy && head.x%LARGURA == fx) {
+		//Hits Tail
+		if (hitsBody (&first, first.x, first.y)) gameOver = true;
+		
+		//Hits Fruit
+		if (fx == first.x && fy == first.y) {
 			score += 10;
-			reset_fruit(&fx, &fy);
-			nSnake++;
-			createNode(head.x, head.y, last);
-			last = last->prox;			
+			last = createNode (last ? last : &first, fx, fy);
+			resetFruit (&first, &fx, &fy);
 		}
 		
-		for (node *p = &head; p->prox !=  NULL; p = p->prox) {
-			p->x = p->prox->x;
-			p->y = p->prox->y;
+		//Tail Follows
+		if (last != NULL) {
+			last->x = x_before;
+			last->y = y_before;
+			if (last->before == &head)
+				last = last->before->before;
+			else
+				last = last->before;
 		}
 		/*-------*/
 		
-		/* DRAW */			
-		cout << input << endl;
-		cout << "score:   " << score << endl;
-		cout << "head.x   " << head.x%LARGURA << endl;
-		cout << "head.y   " << head.y%ALTURA << endl;
-		cout << "[fx, fy] " << fx << "," << fy << endl;
+		/* DRAW */
+		cout << "Score: " << score << endl;
+		for (int i = 0; i <= WIDTH+1; i++) cout << '#';
+		cout << endl;
 		
-		for (int i = 0; i < ALTURA; i++) {
-			for (int j = 0; j < LARGURA; j++) {
-				//if (i == head.y && j == head.x) cout << "0";
-				if (belongsList(&head, i, j)) cout << "0";
-				else if (j == fy && i == fx) cout << "x";
-				else cout << ".";
+		for (int y = 0; y < HEIGHT; y++) {
+		cout << '#';
+			for (int x = 0; x < WIDTH; x++) {
+				if (belongsList (&first, x, y))	cout << 'O';
+				else if (x == fx && y == fy)	cout << 'x';
+				else 							cout << ' ';
 			}
-			cout << endl;
+		cout << '#' << endl;
 		}
+		
+		for (int i = 0; i <= WIDTH+1; i++) cout << '#';
 		cout << endl;
 		/*------*/
-		printLista(&head);
 	}
+	
+	system ("clear");
+	cout << endl;
+	cout << " =================== " << endl;
+	cout << " ==== GAME OVER ==== " << endl;
+	cout << " =================== " << endl << endl;
+	cout << "Score: " << score << endl << endl;
+	
+	
 	return 0;
 }
+
 
 
 
