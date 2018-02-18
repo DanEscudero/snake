@@ -75,6 +75,12 @@ int rand_range (int min, int max)
 	return rand()*1.0/(RAND_MAX-1) * (max+1-min) + min;
 }
 
+bool prob (float x)
+{
+	srand(clock());
+	return x > (double)rand() / ((double)RAND_MAX + 1);
+}
+
 /* Returns time now */
 double time_now()
 {
@@ -115,11 +121,11 @@ bool belongsList (node *first, int size, int i, int j)
 }
 
 /* Sets new position to fruit. New position can't be in the snake */
-void resetFruit (node *first, int size, int *fx, int *fy)
+void resetFruit (node *first, int size, int *x, int *y)
 {
-	while (belongsList (first, size, *fx, *fy)){
-		*fx = rand_range(1, WIDTH-2);
-		*fy = rand_range(1, HEIGHT-2);
+	while (belongsList (first, size, *x, *y)){
+		*x = rand_range(1, WIDTH-2);
+		*y = rand_range(1, HEIGHT-2);
 	}
 }
 
@@ -149,9 +155,14 @@ int main ()
 	double t1 = time_now();
 	double t2 = t1;
 	double DELAY = 0.15;
+	double remTimeF;
 	
 	int fx = rand_range(1, WIDTH-2);
 	int fy = rand_range(1, HEIGHT-2);
+	
+	int SPx = rand_range(1, WIDTH-2);
+	int SPy = rand_range(1, HEIGHT-2);
+	bool SPfruit = false;
 	
 	int x_before, y_before;
 	int size = 1;
@@ -163,18 +174,13 @@ int main ()
 	first.y = HEIGHT/2;
 	first.next = &first;
 	first.before = &first;
-	/*
-	head.x = -1;
-	head.y = -1;
-	head.next = &first;
-	head.before = &first;
-	*/
+	
 	while (!gameOver) {
 		/* SETUP TERMINAL */
 		set_conio_terminal_mode();
 		
 		//DELAY is set to change, giving proression in dificulty
-		DELAY = max(0.1 - 0.002*(double)(score/10), 0.03);
+		DELAY = max(0.1 - 0.0003*(double)(score/10), 0.03);
 		
 		while (!kbhit() && t1-t2 < DELAY) t1 = time_now();
 		if (t1-t2 < DELAY) input = getch();
@@ -185,8 +191,8 @@ int main ()
 		/*----------------*/
 
 		/* INPUT */		
-		int x_before = first.x;
-		int y_before = first.y;
+		x_before = first.x;
+		y_before = first.y;
 		
 		switch (input) {
 			case 'w':
@@ -213,16 +219,29 @@ int main ()
 		/*-------*/
 		
 		/* LOGIC */
-		//MISSING: SPECIAL FRUIT
-		//Hits Wall
-		if (first.x == WIDTH || first.x == -1 || first.y == HEIGHT || first.y == -1) gameOver = true;
-		
 		//Hits Fruit
 		if (fx == first.x && fy == first.y) {
 			score += 10;
 			size++;
 			last = createNode (last, fx, fy);
 			resetFruit (&first, size, &fx, &fy);
+			if (!SPfruit && prob (0.25)) {
+				SPfruit = true;
+				resetFruit (&first, size, &SPx, &SPy);
+				remTimeF = 3.5;
+			}
+		}
+		
+		if (SPfruit) remTimeF -= DELAY;
+		if (remTimeF <= 0) SPfruit = false;
+		
+		//Hits Special Fruit
+		if (SPfruit && SPx == first.x && SPy == first.y) {
+				score += 30;
+				size += 3;
+				for (int i = 0; i < 3; i++) last = createNode (last, fx, fy);
+				resetFruit (&first, size, &SPx, &SPy);
+				SPfruit = false;
 		}
 		
 		//Move
@@ -236,6 +255,8 @@ int main ()
 		if (size > 1)
 			if (hitsTail (&first, size, first.x, first.y)) gameOver = true;
 		
+		//Hits Wall
+		if (first.x == WIDTH || first.x == -1 || first.y == HEIGHT || first.y == -1) gameOver = true;
 		/*-------*/
 		
 		/* DRAW */
@@ -246,15 +267,17 @@ int main ()
 		for (int y = 0; y < HEIGHT; y++) {
 		cout << '#';
 			for (int x = 0; x < WIDTH; x++) {
-				if (belongsList (&first, size, x, y))	cout << 'O';
-				else if (x == fx && y == fy)			cout << 'x';
-				else 									cout << ' ';
+				if (belongsList (&first, size, x, y))		cout << 'O';
+				else if (x == fx && y == fy)				cout << 'x';
+				else if (SPfruit && x == SPx && y == SPy)	cout << '@';
+				else 										cout << ' ';
 			}
 		cout << '#' << endl;
 		}
 		
 		for (int i = 0; i <= WIDTH+1; i++) cout << '#';
 		cout << endl;
+		if (SPfruit) cout << "Remaining Time: " << remTimeF << endl;
 		/*------*/
 	}
 	
